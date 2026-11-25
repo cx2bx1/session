@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -z "${1:-}" ]; then
+    echo "Usage: session <program> [args...]"
+    exit 1
+fi
+
+if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Error: '$1' not found."
+    exit 1
+fi
+
+APP="$1"
+shift
+EXTRA_ARGS=()
+
+# Keep Electron/VS Code instances in the foreground
+if [[ "$APP" == "code" || "$APP" == "code-oss" ]]; then
+    EXTRA_ARGS+=("--wait")
+fi
+
+TMP_XINIT=$(mktemp /tmp/xinitrc.XXXXXX)
+trap 'rm -f "$TMP_XINIT"' EXIT
+
+cat << XEOF > "$TMP_XINIT"
+#!/usr/bin/env bash
+openbox &
+WM_PID=\$!
+$(printf '%q ' "$APP" "${EXTRA_ARGS[@]}" "$@")
+kill \$WM_PID 2>/dev/null || true
+XEOF
+
+chmod +x "$TMP_XINIT"
+startx "$TMP_XINIT"
